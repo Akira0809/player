@@ -7,6 +7,7 @@ import socketio
 import time
 
 from rich import print
+from collections import defaultdict
 
 """
 定数
@@ -160,9 +161,10 @@ def select_play_card(cards, before_caard):
     cards_valid = [] # 同じ色 または 同じ数字・記号 のカードを格納
     cards_wild = [] # ワイルド・シャッフルワイルド・白いワイルドを格納
     cards_wild4 = [] # ワイルドドロー4を格納
+    sorted_cards = sort_cards(cards)
 
     # 場札と照らし合わせ出せるカードを抽出する
-    for card in cards:
+    for card in sorted_cards:
         card_special = card.get('special')
         card_number = card.get('number')
         if str(card_special) == Special.WILD_DRAW_4:
@@ -191,12 +193,10 @@ def select_play_card(cards, before_caard):
     このプログラムでは優先順位を、「同じ色 または 同じ数字・記号」 > 「ワイルド・シャッフルワイルド・白いワイルド」 > ワイルドドロー4の順番とする。
     ワイルドドロー4は本来、手札に出せるカードが無い時に出していいカードであるため、一番優先順位を低くする。
     ワイルド・シャッフルワイルド・白いワイルドはいつでも出せるので、条件が揃わないと出せない「同じ色 または 同じ数字・記号」のカードより優先度を低くする。
+    
+    現在の優先度 cards_wild > cards_valid > cards_wild4
     """
-    print("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
-    print(cards_valid)
-    sorted_list = sorted(cards_valid, key=custom_sort_key, reverse=True)
-    print(sorted_list)
-    list = cards_wild + sorted_list + cards_wild4
+    list = cards_wild + cards_valid + cards_wild4
     if len(list) > 0:
         return list[0]
     else:
@@ -205,12 +205,23 @@ def select_play_card(cards, before_caard):
 """
 カードの順番のソート
 """
-def custom_sort_key(item):
-    if 'number' in item:
-        return item['number']
-    else:
-        # 例外処理: 'number'キーがない場合、小さな値を返す
-        return float('inf')
+def sort_cards(data):
+    tmp_dict = defaultdict(list)
+
+    for item in data:
+        color = item['color']
+        number = item.get('number')
+        special = item.get('special')
+        tmp_dict[color].append({'number': number, 'special': special})
+
+    sort_list = [
+        {'color': color, **{k: v for k, v in item.items() if v is not None}}
+        for color, items in sorted(tmp_dict.items(), key=lambda x: (len(x[1]), max((i['number'] or float('-inf')) for i in x[1]), any(i['special'] for i in x[1])), reverse=True)
+        for item in sorted(items, key=lambda x: (x['special'] is not None, x['special'], x['number'] or float('-inf')), reverse=True)
+    ]
+
+    return sort_list
+
 
 
 """
